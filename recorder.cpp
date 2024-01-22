@@ -3,8 +3,8 @@
 #include <sys/stat.h>
 #include <sys/statfs.h>
 
-#include "recorder.hpp"
-#include "utilities.hpp"
+#include "recorder.h"
+#include "utilities.h"
 
 
 #define LOCAL_DBG_EN			(1)
@@ -24,7 +24,10 @@ Recorder::Recorder(std::string pathToRecords,
     this->mType = type;
     this->mOption = option;
     this->mDurationInSecs = durationInSecs;
-    this->mExtension.assign(mType == eType::Video ? FILE_VIDEO_RECORD_EXTENSION : FILE_AUDIO_RECORD_EXTENSION);
+
+    this->mExtension += (mType == eType::Video)      ? "_13"  : "";
+    this->mExtension += (mOption == eOption::Motion) ? "_mdt" : "";
+    this->mExtension += (mType == eType::Video)      ? FILE_VIDEO_RECORD_TEMPORARY : FILE_AUDIO_RECORD_TEMPORARY;
 }
 
 Recorder::~Recorder() {
@@ -34,13 +37,8 @@ Recorder::~Recorder() {
 int Recorder::getStart() {
     uint32_t u32Timestamp;
     std::tm tm;
-    std::string fmt = FILE_RECORD_STRING_FORMAT;
+    std::string fmt = FILE_RECORD_STRING_FORMAT + mExtension;
     
-    fmt += (mType == eType::Video)      ? "_13"  : "";
-    fmt += (mOption == eOption::Motion) ? "_mdt" : "";
-    fmt += mExtension;
-    fmt += RECORD_TEMPORARY_SUFFIX;
-
     u32Timestamp = getCurrentEpochTimestamp();
 	epochToUTCTime(u32Timestamp, tm);
 
@@ -74,12 +72,13 @@ int Recorder::getStop() {
 
     if (!targetRename.empty()) {
         size_t pos = targetRename.find(searchString);
-
-        targetRename.erase(pos, searchString.length());
-        rename(mTarget.c_str(), targetRename.c_str());
-        ret = RECORD_RETURN_SUCCESS;
-        mTarget.clear();
-        LOCAL_DBG("Rename %s to %s\n", mTarget.c_str(), targetRename.c_str());
+        if (pos != std::string::npos) {
+            targetRename.erase(pos, searchString.length());
+            rename(mTarget.c_str(), targetRename.c_str());
+            ret = RECORD_RETURN_SUCCESS;
+            mTarget.clear();
+            LOCAL_DBG("Rename %s to %s\n", mTarget.c_str(), targetRename.c_str());
+        }
     }
 
     return ret;
@@ -91,7 +90,7 @@ int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
 	
     fd = open(mTarget.c_str(), O_RDWR | O_APPEND, 0666);
 	if (fd == -1) {
-		LOCAL_DBG("[ERR] Open : %s\n", mTarget.c_str());
+		LOCAL_DBG("[ERROR] Open : %s\n", mTarget.c_str());
         return RECORD_RETURN_FAILURE;
     }
 
@@ -111,7 +110,7 @@ void Recorder::updateLastTimestampRecord() {
 	std::string replacementString = std::to_string(currentEpochTimestamp);
     auto strings = splitString(mTarget, '_');
    
-    if (!IS_MOTION_RECORD(strings.size()) && !IS_FULL_RECORD(strings.size())) {
+    if (!IS_FORMAT_PARSED_VALID(strings.size())) {
         return;
     }
 
@@ -119,12 +118,7 @@ void Recorder::updateLastTimestampRecord() {
         mStopTimestamp = currentEpochTimestamp;
         strings[2].assign(std::to_string(currentEpochTimestamp));
         
-        std::string targetRename;
-        for (uint8_t id = 0; id < strings.size(); ++id) {
-            targetRename += strings[id];
-            targetRename += (id != (strings.size() - 1)) ? "_" : "";
-        }
-
+        std::string targetRename = strings[0] + "_" + strings[1] + "_" + strings[2] + mExtension;
         rename(mTarget.c_str(), targetRename.c_str());
         mTarget.assign(targetRename);
     }

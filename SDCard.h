@@ -23,10 +23,10 @@
 #include <mutex>
 #include <string>
 
-#include "recorder.hpp"
+#include "recorder.h"
 
 #define SDCARD_HARD_DRIVE	    		"/dev/mmcblk0"
-#define SDCARD_MOUNT_PATH     			"/tmp/sdCard"
+#define SDCARD_MOUNT_PATH     			"/tmp/sd"
 
 #define SDCARD_FORMAT_TYPE				"vfat"
 #define SDCARD_FORMAT_COMMAND			"mkfs.vfat"
@@ -40,7 +40,7 @@
 typedef struct {
 	uint8_t nbOrder;
 	uint8_t type;
-	uint32_t durationInSecs;
+	uint32_t durationInSecs = 0;
 	std::string fileName;
 	std::string beginTime;
 	std::string endTime;
@@ -65,27 +65,23 @@ public:
 		Format,
 	};
 
-	enum class eSessionRecord {
-		Open,
-		Close
-	};
-
-	SDCard(std::string hardDrive, std::string mountPoint);
+	SDCard(std::string hardDrive);
 	~SDCard();
 	
+	void assignMountPoint(std::string mountPoint);
 	int setOperation(eOperations oper);
 	bool isInserted();
 	bool hasMountPoint();
 	bool isVFatFmt();
 	void updateCapacity();
-	std::vector<RecordDesc> getAllPlaylists(std::string dateTime);
+	std::vector<RecordDesc> getAllPlaylists(std::string dateTime, Recorder::eOption opt);
 	
 	void lockPOSIXMutex();
 	void unLockPOSIXMutex();
 
 private:
 	pthread_mutex_t mPOSIXMutex;
-	eState mState = eState::Mounted;
+	eState mState = eState::Removed;
 
 	struct {
 		size_t total;
@@ -93,7 +89,7 @@ private:
 		size_t free;
 	} mCapacity;
 
-	void qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime);
+	void qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime, Recorder::eOption opt);
 
 public:
 	std::string hardDrive;
@@ -102,8 +98,8 @@ public:
 	eState &eStateSD = mState;
 	
 	std::string currentSession;
-	std::shared_ptr<Recorder> videoRecord;
-	std::shared_ptr<Recorder> audioRecord;
+	std::shared_ptr<Recorder> videoRecorder;
+	std::shared_ptr<Recorder> audioRecorder;
 
 	size_t &totalCapacity = mCapacity.total;
 	size_t &usedCapacity = mCapacity.used;
@@ -117,8 +113,8 @@ public:
 		and EXIT_ATOMIC() to protect operations.
 	*/
 	static bool isSDCardMounted(SDCard &sdCard);
-	static void openSessionRec(SDCard &sdCard);
-	static void closeSessionRec(SDCard &sdCard);
+	static void openSessionFullRec(SDCard &sdCard);
+	static void closeSessionFullRec(SDCard &sdCard);
 	static int collectSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample);
 };
 

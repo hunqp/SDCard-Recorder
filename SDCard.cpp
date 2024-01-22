@@ -9,8 +9,8 @@
 #include <sys/statfs.h>
 #include <sys/mount.h>
 
-#include "SDCard.hpp"
-#include "utilities.hpp"
+#include "SDCard.h"
+#include "utilities.h"
 
 #define LOCAL_DBG_EN			(1)
 
@@ -21,11 +21,9 @@
 #endif
 
 
-SDCard::SDCard(std::string hardDrive, std::string mountPoint) {
+SDCard::SDCard(std::string hardDrive) {
 	mPOSIXMutex = PTHREAD_MUTEX_INITIALIZER;
-
 	this->hardDrive.assign(hardDrive);
-	this->mountPoint.assign(mountPoint);
 
 	/* Create directory for mounting SD Card when it has inserted */
 	createDirectory(mountPoint.c_str());
@@ -38,6 +36,10 @@ SDCard::~SDCard() {
 	pthread_mutex_destroy(&mPOSIXMutex);
 }
 
+void SDCard::assignMountPoint(std::string mountPoint) {
+	this->mountPoint.assign(mountPoint);
+}
+
 void SDCard::lockPOSIXMutex() {
 	pthread_mutex_lock(&mPOSIXMutex);
 }
@@ -48,6 +50,10 @@ void SDCard::unLockPOSIXMutex() {
 
 int SDCard::setOperation(eOperations oper) {
 	int ret = SDCARD_RETURN_SUCCESS;
+
+	if (mountPoint.empty()) {
+		return SDCARD_MOUNT_FAILURE;
+	}
 
 	switch (oper) {
 	case eOperations::Mount: {
@@ -126,11 +132,11 @@ void SDCard::updateCapacity() {
 	}
 }
 
-std::vector<RecordDesc> SDCard::getAllPlaylists(std::string dateTime) {
+std::vector<RecordDesc> SDCard::getAllPlaylists(std::string dateTime, Recorder::eOption opt) {
 	std::vector<RecordDesc> listRecords;
 
 	if (mState == eState::Mounted) {
-		qryPlayList(listRecords, dateTime);
+		qryPlayList(listRecords, dateTime, opt);
 	}
 
 	return listRecords;
@@ -148,14 +154,28 @@ static bool sortListByTime(RecordDesc &t1, RecordDesc &t2) {
 	return (t1.sortTime.sec > t2.sortTime.sec);
 }
 
-static RecordDesc parseRecordDesc(std::string &desc) {
+static RecordDesc parseRecordDesc(std::string &desc, Recorder::eOption opt) {
 	RecordDesc recordDesc;
-	auto strings = splitString(desc, '_');
 	std::tm tmStart, tmStop;
+	auto strings = splitString(desc, '_');
 
-	/* TRUE FORMAT : <Year><Month><Day><Hour><Month><Second>_<StartTimestamp>_<StopTimestamp>_<FPT>.<Extension> */
-	if (strings.size() != 4) {
-		return recordDesc;
+	switch (opt) {
+	case Recorder::eOption::Motion: {
+		if (IS_MOTION_RECORD(strings.size()) == false) {
+			return recordDesc;
+		}
+	}
+	break;
+	
+	case Recorder::eOption::Full: {
+		if (IS_FULL_RECORD(strings.size()) == false) {
+			return recordDesc;
+		}
+	}
+	break;
+
+	default:
+	break;
 	}
 
 	epochToUTCTime(stoi(strings[1]), tmStart);
@@ -164,6 +184,7 @@ static RecordDesc parseRecordDesc(std::string &desc) {
 	recordDesc.sortTime.min = tmStart.tm_min;
 	recordDesc.sortTime.sec = tmStart.tm_sec;
 
+	recordDesc.type				= (uint8_t)opt;
 	recordDesc.fileName 		= sprintfString("%s_%s_%s", strings[0].c_str(), strings[1].c_str(), strings[2].c_str());
 	recordDesc.beginTime 		= sprintfString("%d.%02d.%02d %02d:%02d:%02d", tmStart.tm_year, tmStart.tm_mon, tmStart.tm_mday, tmStart.tm_hour, tmStart.tm_min, tmStart.tm_sec);
 	recordDesc.endTime 			= sprintfString("%d.%02d.%02d %02d:%02d:%02d", tmStop.tm_year, tmStop.tm_mon, tmStop.tm_mday, tmStop.tm_hour, tmStop.tm_min, tmStop.tm_sec);
@@ -172,18 +193,18 @@ static RecordDesc parseRecordDesc(std::string &desc) {
 	return recordDesc;
 }
 
-static void eraseSuffix(std::string pathTo, std::string &recordDesc, std::string suffixRm) {
-    std::string targetTmp = pathTo + "/" + recordDesc;
-    size_t pos = recordDesc.find(suffixRm);
+static void eraseSuffix(std::string pathTo, std::string &recordDesc, std::string suffixErase) {
+	std::string pathToFileNeedRecover = pathTo + "/" + recordDesc;
+    size_t pos = recordDesc.find(suffixErase);
 
 	if (pos != std::string::npos) {
-		recordDesc.erase(pos, suffixRm.length());
+		recordDesc.erase(pos, suffixErase.length());
 	}
-	std::string targetRename = pathTo + "/" + recordDesc;
-	rename(targetTmp.c_str(), targetRename.c_str());
+	std::string pathToFileRecovered = pathTo + "/" + recordDesc;
+	rename(pathToFileNeedRecover.c_str(), pathToFileRecovered.c_str());
 }
 
-void SDCard::qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime) {
+void SDCard::qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime, Recorder::eOption opt) {
 	std::string pathToVideoLists = mountPoint + std::string("/video/") + dateTime;
 
 	LOCAL_DBG("Path to video lists: %s\n", pathToVideoLists.c_str());
@@ -197,23 +218,30 @@ void SDCard::qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateT
 	struct dirent *ent;
 	while ((ent = readdir(dir)) != NULL) {
 		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) {
-			std::string recordDesc(ent->d_name, strlen(ent->d_name));
+			std::string videoDesc(ent->d_name, strlen(ent->d_name));
 
 			size_t pos = 0;
-			pos = recordDesc.find(".tmp");
+			pos = videoDesc.find(".tmp");
 
+			/* Recovery record temporary */
 			if (pos != std::string::npos) {
-				if (dateTime != getTodayDateString()) {
-					eraseSuffix(std::string(mountPoint + std::string("/video/") + dateTime), recordDesc, ".tmp");
-					// eraseSuffix(std::string(mountPoint + std::string("/audio")), recordDesc, ".tmp");
+				if (dateTime == getTodayDateString()) {
+					continue;
 				}
-				else continue;
+				/* Change video description to audio description */
+				std::string audioDesc = videoDesc;
+				size_t ind = audioDesc.find("_13");
+				audioDesc = audioDesc.erase(ind, strlen("_13"));
+				ind = audioDesc.find(FILE_VIDEO_RECORD_EXTENSION);
+				audioDesc = audioDesc.replace(ind, strlen(FILE_VIDEO_RECORD_EXTENSION), FILE_AUDIO_RECORD_EXTENSION);
+				eraseSuffix(std::string(mountPoint + std::string("/video/") + dateTime), videoDesc, RECORD_TEMPORARY_SUFFIX);
+				eraseSuffix(std::string(mountPoint + std::string("/audio/") + dateTime), audioDesc, RECORD_TEMPORARY_SUFFIX);
 			}
 
-			pos = recordDesc.find('.');
-			recordDesc = recordDesc.substr(0, pos);
-			auto descParsed = parseRecordDesc(recordDesc);
-			if (descParsed.durationInSecs != 0) {
+			pos = videoDesc.find('.');
+			videoDesc = videoDesc.substr(0, pos);
+			auto descParsed = parseRecordDesc(videoDesc, opt);
+			if (descParsed.durationInSecs >= 10) { /* Minimum 10 Seconds */
 				listRecords.emplace_back(descParsed);
 			}
 		}
@@ -261,7 +289,7 @@ bool SDCard::isSDCardMounted(SDCard &sdCard) {
 	return ret;
 }
 
-void SDCard::openSessionRec(SDCard &sdCard) {
+void SDCard::openSessionFullRec(SDCard &sdCard) {
 	sdCard.currentSession = getTodayDateString();
 
 	/* Create parent directories (Video and audio) */
@@ -276,17 +304,17 @@ void SDCard::openSessionRec(SDCard &sdCard) {
 	createDirectory(videoRecordsTodayPath.c_str());
 	createDirectory(audioRecordsTodayPath.c_str());
 
-	sdCard.videoRecord = std::make_shared<Recorder>(videoRecordsTodayPath, Recorder::eType::Video, Recorder::eOption::Full);
-	sdCard.audioRecord = std::make_shared<Recorder>(audioRecordsTodayPath, Recorder::eType::Audio, Recorder::eOption::Full);
+	sdCard.videoRecorder = std::make_shared<Recorder>(videoRecordsTodayPath, Recorder::eType::Video, Recorder::eOption::Full);
+	sdCard.audioRecorder = std::make_shared<Recorder>(audioRecordsTodayPath, Recorder::eType::Audio, Recorder::eOption::Full);
 }
 
-void SDCard::closeSessionRec(SDCard &sdCard) {
+void SDCard::closeSessionFullRec(SDCard &sdCard) {
 	sdCard.currentSession.clear();
 
-	sdCard.videoRecord->getStop();
-	sdCard.audioRecord->getStop();
-	sdCard.videoRecord.reset();
-	sdCard.audioRecord.reset();
+	sdCard.videoRecorder->getStop();
+	sdCard.audioRecorder->getStop();
+	sdCard.videoRecorder.reset();
+	sdCard.audioRecorder.reset();
 }
 
 int SDCard::collectSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample) {
