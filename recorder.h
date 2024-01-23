@@ -50,7 +50,7 @@ public:
 
     int getStart();
     int getStop();
-    int getStorage(uint8_t *sample, size_t totalSample);
+    int getStorage(uint8_t *sample, size_t totalSample, uint32_t lastTimestampUpdate);
     bool isCompleted();
     std::string getCurrentInstance();
 
@@ -64,7 +64,7 @@ private:
 
     std::string mTarget;
 
-    void updateLastTimestampRecord();
+    void updateLastTimestampRecord(uint32_t lastTimestampUpdate);
 
 public:
     std::string pathToRecords;

@@ -83,7 +83,7 @@ int Recorder::getStop() {
     return ret;
 }
 
-int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
+int Recorder::getStorage(uint8_t *sample, size_t totalSample, uint32_t lastTimestampUpdate) {
 	int ret = RECORD_RETURN_FAILURE;
     int fd;
 	
@@ -99,25 +99,24 @@ int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
     close(fd);
 
 	if (nbOfBytes > 0) {
-        updateLastTimestampRecord();
+        updateLastTimestampRecord(lastTimestampUpdate);
 		ret = RECORD_RETURN_SUCCESS;
 	}
 
     return ret;
 }
 
-void Recorder::updateLastTimestampRecord() {
-    uint32_t currentEpochTimestamp = getCurrentEpochTimestamp();
-	std::string replacementString = std::to_string(currentEpochTimestamp);
+void Recorder::updateLastTimestampRecord(uint32_t lastTimestampUpdate) {
+	std::string replacementString = std::to_string(lastTimestampUpdate);
     auto strings = splitString(mTarget, '_');
    
     if (!IS_FORMAT_PARSED_VALID(strings.size())) {
         return;
     }
 
-    if (mStopTimestamp != currentEpochTimestamp) {
-        mStopTimestamp = currentEpochTimestamp;
-        strings[2].assign(std::to_string(currentEpochTimestamp));
+    if (mStopTimestamp != lastTimestampUpdate) {
+        mStopTimestamp = lastTimestampUpdate;
+        strings[2].assign(std::to_string(lastTimestampUpdate));
         
         std::string targetRename = strings[0] + "_" + strings[1] + "_" + strings[2] + mExtension;
         rename(mTarget.c_str(), targetRename.c_str());

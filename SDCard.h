@@ -105,6 +105,8 @@ public:
 	size_t &usedCapacity = mCapacity.used;
 	size_t &freeCapacity = mCapacity.free;
 
+	uint32_t lastTimestampUpdate = 0;
+
 	/* Function protect safe accesss to SDCard */
 	static void ENTRY_ATOMIC(SDCard &sdCard);
 	static void EXIT_ATOMIC(SDCard &sdCard);
@@ -115,7 +117,7 @@ public:
 	static bool isSDCardMounted(SDCard &sdCard);
 	static void openSessionFullRec(SDCard &sdCard);
 	static void closeSessionFullRec(SDCard &sdCard);
-	static int storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample);
+	static int storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample, uint32_t lastTimestampUpdate);
 };
 
 #define gigaBytesToMegaBytes(n)	((size_t)n * 1024)

@@ -347,7 +347,7 @@ void SDCard::closeSessionFullRec(SDCard &sdCard) {
 	sdCard.audioRecorder.reset();
 }
 
-int SDCard::storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample) {
+int SDCard::storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample, uint32_t lastTimestampUpdate) {
 	std::string recPresent = rec->getCurrentInstance();
 
 	if (recPresent.empty()) {
@@ -356,7 +356,7 @@ int SDCard::storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_
 		}
 	}
 
-	if (rec->getStorage(sample, totalSample) != RECORD_RETURN_SUCCESS) {
+	if (rec->getStorage(sample, totalSample, lastTimestampUpdate) != RECORD_RETURN_SUCCESS) {
 		return SDCARD_STORAGE_FAILURE;
 	}
 

@@ -22,6 +22,7 @@ std::string sprintfString(std::string fmt, Args... args) {
 template std::string sprintfString(std::string, int, int, int, int, int, int, unsigned int, unsigned int);
 template std::string sprintfString(std::string, const char*, const char*, const char*);
 template std::string sprintfString(std::string, int, int, int, int, int, int);
+template std::string sprintfString(std::string, int, int, int);
 
 std::vector<std::string> splitString(std::string &s, char delimeter) {
     std::vector<std::string> stGroups;
@@ -72,6 +73,6 @@ void createDirectory(const char *directory) {
 	struct stat fStat;
 
 	if (stat(directory, &fStat) == -1) {
-		mkdir(directory, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+		mkdir(directory, S_IRWXU | S_IRWXG | S_IRWXO);
 	}
 }

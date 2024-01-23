@@ -31,10 +31,6 @@ int main() {
     pathToRecords += "/records";
 
     SDRecords.assignMountPoint(pathToRecords);
-
-    signalHandler(3);
-    exit(0);
-
     setupBeforeOpenSession();
 
     if (!SDRecords.currentSession.empty()) {
@@ -129,6 +125,7 @@ void setupBeforeOpenSession() {
         isMounted = SDCard::isSDCardMounted(SDRecords);
     #else
         isMounted = true; /* TODO: Assign for testing */
+        SDRecords.eStateSD = SDCard::eState::Mounted;
     #endif
 
         if (!isMounted) {
@@ -166,10 +163,14 @@ void* storageH264Samples(void *arg) {
     while (1) {
         SDCard::ENTRY_ATOMIC(SDRecords);
         {
+        #if 0
             bool isMounted = SDCard::isSDCardMounted(SDRecords);
+        #else
+            bool isMounted = true;
+        #endif
             if (isMounted && SDRecords.currentSession.empty() == false) {
                 samplesH264 += 1;
-                int ret = SDCard::storageSamples(SDRecords.videoRecorder, (uint8_t*)&samplesH264, sizeof(samplesH264));
+                int ret = SDCard::storageSamples(SDRecords.videoRecorder, (uint8_t*)&samplesH264, sizeof(samplesH264), SDRecords.lastTimestampUpdate);
                 if (ret == SDCARD_RETURN_SUCCESS) {
                     std::cout << "[STORAGE] Samples video " << unsigned(samplesH264) << " has collected" << std::endl;
                 }
@@ -177,8 +178,6 @@ void* storageH264Samples(void *arg) {
                     std::cout << "[STORAGE] Samples video " << unsigned(samplesH264) << " hasn't collected" << std::endl;
                 }
             }
-
-            
         }
         SDCard::EXIT_ATOMIC(SDRecords);
 
@@ -194,10 +193,18 @@ void* storageG711Samples(void *arg) {
     while (1) {
         SDCard::ENTRY_ATOMIC(SDRecords);
         {
+        #if 0
             bool isMounted = SDCard::isSDCardMounted(SDRecords);
+        #else
+            bool isMounted = true;
+        #endif
+    
             if (isMounted && SDRecords.currentSession.empty() == false) {
+                uint32_t u32Timestamp = getCurrentEpochTimestamp();
+			    SDRecords.lastTimestampUpdate = (SDRecords.lastTimestampUpdate != u32Timestamp) ? u32Timestamp : SDRecords.lastTimestampUpdate;
+
                 samplesG711 += 2;
-                int ret = SDCard::storageSamples(SDRecords.audioRecorder, (uint8_t*)&samplesG711, sizeof(samplesG711));
+                int ret = SDCard::storageSamples(SDRecords.audioRecorder, (uint8_t*)&samplesG711, sizeof(samplesG711), SDRecords.lastTimestampUpdate);
                 if (ret == SDCARD_RETURN_SUCCESS) {
                     std::cout << "[STORAGE] Samples audio " << unsigned(samplesG711) << " has collected" << std::endl;
                 }
