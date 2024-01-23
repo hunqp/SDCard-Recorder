@@ -26,7 +26,7 @@
 #include "recorder.h"
 
 #define SDCARD_HARD_DRIVE	    		"/dev/mmcblk0"
-#define SDCARD_MOUNT_PATH     			"/tmp/sd"
+#define SDCARD_MOUNT_POINT     			"/tmp/sd"
 
 #define SDCARD_FORMAT_TYPE				"vfat"
 #define SDCARD_FORMAT_COMMAND			"mkfs.vfat"
@@ -75,7 +75,7 @@ public:
 	bool isVFatFmt();
 	void updateCapacity();
 	std::vector<RecordDesc> getAllPlaylists(std::string dateTime, Recorder::eOption opt);
-	
+
 	void lockPOSIXMutex();
 	void unLockPOSIXMutex();
 
@@ -115,7 +115,7 @@ public:
 	static bool isSDCardMounted(SDCard &sdCard);
 	static void openSessionFullRec(SDCard &sdCard);
 	static void closeSessionFullRec(SDCard &sdCard);
-	static int collectSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample);
+	static int storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample);
 };
 
 #define gigaBytesToMegaBytes(n)	((size_t)n * 1024)

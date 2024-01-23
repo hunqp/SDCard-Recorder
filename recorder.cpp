@@ -54,7 +54,6 @@ int Recorder::getStart() {
     int fd = open(mTarget.c_str(), O_RDWR | O_CREAT | O_APPEND, 0666);
 	if (fd == -1) {
         mTarget.clear();
-
 		return RECORD_RETURN_FAILURE;
     }
 
@@ -94,10 +93,12 @@ int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
         return RECORD_RETURN_FAILURE;
     }
 
-    ssize_t nbrOfBytesWritten = write(fd, sample, totalSample);
+    ssize_t nbOfBytes = write(fd, sample, totalSample);
+
+    fsync(fd);
     close(fd);
 
-	if (nbrOfBytesWritten > 0) {
+	if (nbOfBytes > 0) {
         updateLastTimestampRecord();
 		ret = RECORD_RETURN_SUCCESS;
 	}

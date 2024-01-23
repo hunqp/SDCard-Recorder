@@ -166,14 +166,19 @@ void* storageH264Samples(void *arg) {
     while (1) {
         SDCard::ENTRY_ATOMIC(SDRecords);
         {
-            samplesH264 += 1;
-            int ret = SDCard::collectSamples(SDRecords.videoRecorder, (uint8_t*)&samplesH264, sizeof(samplesH264));
-            if (ret == SDCARD_RETURN_SUCCESS) {
-                std::cout << "[COLLECT] Samples video " << unsigned(samplesH264) << " has collected" << std::endl;
+            bool isMounted = SDCard::isSDCardMounted(SDRecords);
+            if (isMounted && SDRecords.currentSession.empty() == false) {
+                samplesH264 += 1;
+                int ret = SDCard::storageSamples(SDRecords.videoRecorder, (uint8_t*)&samplesH264, sizeof(samplesH264));
+                if (ret == SDCARD_RETURN_SUCCESS) {
+                    std::cout << "[STORAGE] Samples video " << unsigned(samplesH264) << " has collected" << std::endl;
+                }
+                else {
+                    std::cout << "[STORAGE] Samples video " << unsigned(samplesH264) << " hasn't collected" << std::endl;
+                }
             }
-            else {
-                std::cout << "[COLLECT] Samples video " << unsigned(samplesH264) << " hasn't collected" << std::endl;
-            }
+
+            
         }
         SDCard::EXIT_ATOMIC(SDRecords);
 
@@ -189,13 +194,16 @@ void* storageG711Samples(void *arg) {
     while (1) {
         SDCard::ENTRY_ATOMIC(SDRecords);
         {
-            samplesG711 += 2;
-            int ret = SDCard::collectSamples(SDRecords.audioRecorder, (uint8_t*)&samplesG711, sizeof(samplesG711));
-            if (ret == SDCARD_RETURN_SUCCESS) {
-                std::cout << "[COLLECT] Samples audio " << unsigned(samplesG711) << " has collected" << std::endl;
-            }
-            else {
-                std::cout << "[COLLECT] Samples audio " << unsigned(samplesG711) << " hasn't collected" << std::endl;
+            bool isMounted = SDCard::isSDCardMounted(SDRecords);
+            if (isMounted && SDRecords.currentSession.empty() == false) {
+                samplesG711 += 2;
+                int ret = SDCard::storageSamples(SDRecords.audioRecorder, (uint8_t*)&samplesG711, sizeof(samplesG711));
+                if (ret == SDCARD_RETURN_SUCCESS) {
+                    std::cout << "[STORAGE] Samples audio " << unsigned(samplesG711) << " has collected" << std::endl;
+                }
+                else {
+                    std::cout << "[STORAGE] Samples audio " << unsigned(samplesG711) << " hasn't collected" << std::endl;
+                }
             }
         }
         SDCard::EXIT_ATOMIC(SDRecords);

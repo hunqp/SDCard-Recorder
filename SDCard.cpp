@@ -23,10 +23,14 @@
 
 SDCard::SDCard(std::string hardDrive) {
 	mPOSIXMutex = PTHREAD_MUTEX_INITIALIZER;
+
 	this->hardDrive.assign(hardDrive);
 
-	/* Create directory for mounting SD Card when it has inserted */
-	createDirectory(mountPoint.c_str());
+	struct statfs fsStat;
+    /* Query the f_type field to determine if the filesystem is mounted */
+    if (statfs(hardDrive.c_str(), &fsStat) == 0) {
+        umount2(hardDrive.c_str(), MNT_FORCE | MNT_DETACH);
+    }
 }
 
 SDCard::~SDCard() {
@@ -38,6 +42,13 @@ SDCard::~SDCard() {
 
 void SDCard::assignMountPoint(std::string mountPoint) {
 	this->mountPoint.assign(mountPoint);
+	
+	/* Create directory for mounting SD Card when it has inserted */
+	createDirectory(mountPoint.c_str());
+
+	if (hasMountPoint()) {
+		umount2(mountPoint.c_str(), MNT_FORCE | MNT_DETACH);
+	}
 }
 
 void SDCard::lockPOSIXMutex() {
@@ -82,7 +93,7 @@ int SDCard::setOperation(eOperations oper) {
 }
 
 bool SDCard::isInserted() {
-#if 0
+#if 1
 	struct stat fStat;
 	bool ret = (stat(hardDrive.c_str(), &fStat) != -1) ? true : false;
 #else
@@ -265,7 +276,12 @@ bool SDCard::isSDCardMounted(SDCard &sdCard) {
 	bool ret = false;
 
 	if (!sdCard.isInserted()) {
-		sdCard.setOperation(eOperations::Unmount);
+		if (sdCard.eStateSD != eState::Removed) {
+			sdCard.setOperation(eOperations::Unmount);
+
+			std::cout << "Stop new session recording !!!" << std::endl;
+			closeSessionFullRec(sdCard);
+		}
 		sdCard.eStateSD = eState::Removed;
 		return false;
 	}
@@ -278,6 +294,7 @@ bool SDCard::isSDCardMounted(SDCard &sdCard) {
 	else {
 		if (sdCard.setOperation(eOperations::Mount) == SDCARD_RETURN_SUCCESS) {
 			sdCard.eStateSD = eState::Mounted;
+			openSessionFullRec(sdCard);
 		}
 	}
 
@@ -290,6 +307,13 @@ bool SDCard::isSDCardMounted(SDCard &sdCard) {
 }
 
 void SDCard::openSessionFullRec(SDCard &sdCard) {
+	/* QUERY: If current session record has existed -> OPENING
+			  Else -> DO NOTHING
+	*/
+	if (sdCard.currentSession.empty() != true) {
+		return;
+	}
+
 	sdCard.currentSession = getTodayDateString();
 
 	/* Create parent directories (Video and audio) */
@@ -309,26 +333,30 @@ void SDCard::openSessionFullRec(SDCard &sdCard) {
 }
 
 void SDCard::closeSessionFullRec(SDCard &sdCard) {
-	sdCard.currentSession.clear();
+	/* QUERY: If current session record has existed -> CLOSING
+			  Else -> DO NOTHING
+	*/
+	if (sdCard.currentSession.empty() == true) {
+		return;
+	}
 
+	sdCard.currentSession.clear();
 	sdCard.videoRecorder->getStop();
 	sdCard.audioRecorder->getStop();
 	sdCard.videoRecorder.reset();
 	sdCard.audioRecorder.reset();
 }
 
-int SDCard::collectSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample) {
+int SDCard::storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample) {
 	std::string recPresent = rec->getCurrentInstance();
 
 	if (recPresent.empty()) {
 		if (rec->getStart() == RECORD_RETURN_FAILURE) {
-			LOCAL_DBG("[STARTED] %s started\n", recPresent.c_str());
 			return SDCARD_STORAGE_FAILURE;
 		}
 	}
 
 	if (rec->getStorage(sample, totalSample) != RECORD_RETURN_SUCCESS) {
-		LOCAL_DBG("[STORAGE] %s storaged\n", recPresent.c_str());
 		return SDCARD_STORAGE_FAILURE;
 	}
 
