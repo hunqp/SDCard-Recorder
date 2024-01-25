@@ -15,6 +15,9 @@
 #define LOCAL_DBG(fmt, ...)
 #endif
 
+uint32_t Recorder::startTimestamp = 0;
+uint32_t Recorder::endTimestamp = 0;
+
 Recorder::Recorder(std::string pathToRecords,
                    eType type, 
                    eOption option,
@@ -35,19 +38,19 @@ Recorder::~Recorder() {
 }
 
 int Recorder::getStart() {
-    uint32_t u32Timestamp;
     std::tm tm;
     std::string fmt = FILE_RECORD_STRING_FORMAT + mExtension;
-    
-    u32Timestamp = getCurrentEpochTimestamp();
-	epochToUTCTime(u32Timestamp, tm);
 
-    mStartTimestamp = u32Timestamp;
-    mStopTimestamp  = mStartTimestamp;
-    fmt             = sprintfString(fmt, 
-                                    tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-                                    mStartTimestamp, 
-                                    mStopTimestamp);
+    if (Recorder::startTimestamp == 0) {
+        Recorder::startTimestamp = getCurrentEpochTimestamp();
+        Recorder::endTimestamp = mLastTimestampUpdated = Recorder::startTimestamp;
+    }
+	epochToUTCTime(startTimestamp, tm);
+
+    fmt = sprintfString(fmt, 
+                        tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
+                        Recorder::startTimestamp, 
+                        Recorder::endTimestamp);
 
     mTarget.assign(pathToRecords + "/" + fmt);
 
@@ -80,10 +83,12 @@ int Recorder::getStop() {
         }
     }
 
+    Recorder::startTimestamp = 0;
+
     return ret;
 }
 
-int Recorder::getStorage(uint8_t *sample, size_t totalSample, uint32_t lastTimestampUpdate) {
+int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
 	int ret = RECORD_RETURN_FAILURE;
     int fd;
 	
@@ -99,24 +104,24 @@ int Recorder::getStorage(uint8_t *sample, size_t totalSample, uint32_t lastTimes
     close(fd);
 
 	if (nbOfBytes > 0) {
-        updateLastTimestampRecord(lastTimestampUpdate);
+        updateLastTimestampRecord();
 		ret = RECORD_RETURN_SUCCESS;
 	}
 
     return ret;
 }
 
-void Recorder::updateLastTimestampRecord(uint32_t lastTimestampUpdate) {
-	std::string replacementString = std::to_string(lastTimestampUpdate);
+void Recorder::updateLastTimestampRecord() {
+	std::string replacementString = std::to_string(endTimestamp);
     auto strings = splitString(mTarget, '_');
    
     if (!IS_FORMAT_PARSED_VALID(strings.size())) {
         return;
     }
 
-    if (mStopTimestamp != lastTimestampUpdate) {
-        mStopTimestamp = lastTimestampUpdate;
-        strings[2].assign(std::to_string(lastTimestampUpdate));
+    if (mLastTimestampUpdated != Recorder::endTimestamp) {
+        mLastTimestampUpdated = Recorder::endTimestamp;
+        strings[2].assign(std::to_string(mLastTimestampUpdated));
         
         std::string targetRename = strings[0] + "_" + strings[1] + "_" + strings[2] + mExtension;
         rename(mTarget.c_str(), targetRename.c_str());

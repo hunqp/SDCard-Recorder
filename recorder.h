@@ -50,7 +50,7 @@ public:
 
     int getStart();
     int getStop();
-    int getStorage(uint8_t *sample, size_t totalSample, uint32_t lastTimestampUpdate);
+    int getStorage(uint8_t *sample, size_t totalSample);
     bool isCompleted();
     std::string getCurrentInstance();
 
@@ -58,16 +58,19 @@ private:
 	eType mType;
     eOption mOption;
     int mDurationInSecs;
-	uint32_t mStartTimestamp;
-	uint32_t mStopTimestamp;
 	std::string mExtension;
+    uint32_t mLastTimestampUpdated;
 
     std::string mTarget;
 
-    void updateLastTimestampRecord(uint32_t lastTimestampUpdate);
+    void updateLastTimestampRecord();
 
 public:
     std::string pathToRecords;
+
+    /* This variables used to synchronize timestamp between audio and video records */
+    static uint32_t startTimestamp;
+    static uint32_t endTimestamp;
 };
 
 
