@@ -182,6 +182,52 @@ std::vector<RecordDesc> SDCard::getAllPlaylists(std::string dateTime, Recorder::
 	return listRecords;
 }
 
+static std::string findOldestRecord(std::string pathToList) {
+	DIR *dir = opendir(pathToList.c_str());
+	if (dir == nullptr) {
+		LOCAL_DBG("SD Card opens failure, error: %s", strerror(errno));
+		return "";
+	}
+
+	struct dirent *ent;
+	uint32_t oldestTimestamp = UINT32_MAX;
+	std::string oldestString = "";
+
+	/* Query to find oldest file record */
+	while ((ent = readdir(dir)) != NULL) {
+		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) {
+			std::string fileDesc(ent->d_name, strlen(ent->d_name));
+
+			uint32_t u32 = getBirthTimestamp(std::string(pathToList + "/" + fileDesc).c_str());
+			if (oldestTimestamp > u32) {
+				oldestTimestamp = u32;
+				oldestString = fileDesc;
+			}
+		}
+	}
+
+	return oldestString;
+}
+
+void SDCard::eraseOldestRecords(std::string dateTime) {
+	std::string pathToVideoLists = mountPoint + std::string("/video") + (dateTime.empty() ? "" : ("/" + dateTime));
+	std::string pathToAudioLists = mountPoint + std::string("/audio") + (dateTime.empty() ? "" : ("/" + dateTime));
+
+	std::string oldest = findOldestRecord(pathToVideoLists);
+
+	/* Erase oldest folder if it has found */
+	if (oldest.empty() == false) {
+		LOCAL_DBG("%s is oldest -> Must be DELETED\n", oldest.c_str());
+
+		if (dateTime.empty()) {
+			eraseRecord(dateTime, oldest);
+		}
+		else {
+			eraseFolder(oldest);
+		}
+	}
+}
+
 static bool sortListByTime(RecordDesc &t1, RecordDesc &t2) {
 	if (t1.sortTime.hou != t2.sortTime.hou) {
 		return t1.sortTime.hou > t2.sortTime.hou;
@@ -265,7 +311,7 @@ void SDCard::qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateT
 			LOCAL_DBG("Video description: %s\n", videoDesc.c_str());
 			LOCAL_DBG("Audio description: %s\n", audioDesc.c_str());
 
-			/* Video record exist but audio not exist */
+			/* Video record exist but audio not exist -> Ignore it */
 			if (isFileExisted(pathToAudioLists, audioDesc) == false) {
 				continue;
 			}

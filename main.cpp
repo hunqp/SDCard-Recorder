@@ -5,6 +5,7 @@
 #include "SDCard.h"
 #include "recorder.h"
 #include "utilities.h"
+#include "sys/stat.h"
 
 static SDCard SDRecords("/dev/sdb1");
 
@@ -35,7 +36,7 @@ int main() {
     SDRecords.assignMountPoint(pathToRecords);
     SDRecords.eStateSD = SDCard::eState::Mounted;
 
-#if 1
+#if 0
     setupBeforeOpenSession();
 
     if (!SDRecords.currentSession.empty()) {
@@ -50,34 +51,95 @@ int main() {
     else {
         std::cout << "[OPEN] Session Record Opening Failed" << std::endl;
     }
+#endif
 
+#if 0
+    SDCard::ENTRY_ATOMIC(SDRecords);
+    {
+        if (SDRecords.currentSession.empty() == false) {
+            SDRecords.videoRecorder->getStop();
+            SDRecords.audioRecorder->getStop();
+            SDCard::closeSessionFullRec(SDRecords);
+        }
+        
+        std::string qDay = "2024.01.25";
+        auto listRecords = SDRecords.getAllPlaylists(qDay, Recorder::eOption::Full);
+
+        printf("Total full records : %ld\n", listRecords.size());
+        if (listRecords.size()) {   
+            for (auto it : listRecords) {
+                printf("%s, [%s - %s]\n", 
+                                it.fileName.c_str(), 
+                                it.beginTime.c_str(), 
+                                it.endTime.c_str());
+            }
+        }
+
+        listRecords = SDRecords.getAllPlaylists(qDay, Recorder::eOption::Motion);
+        printf("Total motion records : %ld\n", listRecords.size());
+        if (listRecords.size()) {   
+            for (auto it : listRecords) {
+                printf("%s, [%s - %s]\n", 
+                                it.fileName.c_str(), 
+                                it.beginTime.c_str(), 
+                                it.endTime.c_str());
+            }
+        }
+    }
+
+    SDCard::EXIT_ATOMIC(SDRecords);
+#endif
+
+#if 1 /* Test QUERY brith timestamp */
+    std::cout << std::endl;
+    std::string QFolder = "/home/hungqp/PC/SDCard-Recorder/records/video/2024.01.25";
+    std::string QFile1 = "bbb.h264";
+    std::string QFile2 = "aaa.h264";
+
+    std::string qDay25 = pathToRecords + "/video/" + "2024.01.25";
+    std::string qDay28 = pathToRecords + "/video/" + "2024.01.28";
+
+    uint32_t birthOfQDay25 = getBirthTimestamp(qDay25.c_str());
+    uint32_t birthOfQDay28 = getBirthTimestamp(qDay28.c_str());
+
+    printf("[2024.01.25] %d\t%s\n", birthOfQDay25, ctime((time_t*)(time_t)&birthOfQDay25));
+    printf("[2024.01.28] %d\t%s\n", birthOfQDay28, ctime((time_t*)(time_t)&birthOfQDay28));
+
+    if (birthOfQDay25 < birthOfQDay28) {
+        std::cout << "2024.01.25 must be DELETED" << std::endl;
+    }
+    else {
+        std::cout << "2024.01.28 must be DELETED" << std::endl;
+    }
 #endif
 
     return 0;
 }
 
-// if (SDCard::isSDCardMounted(SDRecords)) {
-//     printf("Total capacity :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
-//                     (uint32_t)SDRecords.totalCapacity,
-//                     (uint32_t)bytesToKiloBytes(SDRecords.totalCapacity),
-//                     (uint32_t)bytesToMegaBytes(SDRecords.totalCapacity),
-//                     (uint32_t)bytesToGigaBytes(SDRecords.totalCapacity));
-    
-//     printf("Used capacity  :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
-//                     (uint32_t)SDRecords.usedCapacity,
-//                     (uint32_t)bytesToKiloBytes(SDRecords.usedCapacity),
-//                     (uint32_t)bytesToMegaBytes(SDRecords.usedCapacity),
-//                     (uint32_t)bytesToGigaBytes(SDRecords.usedCapacity));
+/*
+    if (SDCard::isSDCardMounted(SDRecords)) {
+        printf("Total capacity :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
+                        (uint32_t)SDRecords.totalCapacity,
+                        (uint32_t)bytesToKiloBytes(SDRecords.totalCapacity),
+                        (uint32_t)bytesToMegaBytes(SDRecords.totalCapacity),
+                        (uint32_t)bytesToGigaBytes(SDRecords.totalCapacity));
+        
+        printf("Used capacity  :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
+                        (uint32_t)SDRecords.usedCapacity,
+                        (uint32_t)bytesToKiloBytes(SDRecords.usedCapacity),
+                        (uint32_t)bytesToMegaBytes(SDRecords.usedCapacity),
+                        (uint32_t)bytesToGigaBytes(SDRecords.usedCapacity));
 
-//     printf("Free capacity  :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
-//                     (uint32_t)SDRecords.freeCapacity,
-//                     (uint32_t)bytesToKiloBytes(SDRecords.freeCapacity),
-//                     (uint32_t)bytesToMegaBytes(SDRecords.freeCapacity),
-//                     (uint32_t)bytesToGigaBytes(SDRecords.freeCapacity));
-// }
-// else {
-//     std::cout << "SD Card hasn't mounted" << std::endl;
-// }
+        printf("Free capacity  :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
+                        (uint32_t)SDRecords.freeCapacity,
+                        (uint32_t)bytesToKiloBytes(SDRecords.freeCapacity),
+                        (uint32_t)bytesToMegaBytes(SDRecords.freeCapacity),
+                        (uint32_t)bytesToGigaBytes(SDRecords.freeCapacity));
+    }
+    else {
+        std::cout << "SD Card hasn't mounted" << std::endl;
+    }
+*/
 
 void signalHandler(int signal) {
     (void)signal;
@@ -97,7 +159,7 @@ void signalHandler(int signal) {
         if (listRecords.size()) {   
             for (auto it : listRecords) {
                 printf("%s, [%s - %s]\n", 
-                                it.fileName.c_str(), 
+                                    it.fileName.c_str(), 
                                 it.beginTime.c_str(), 
                                 it.endTime.c_str());
             }
@@ -177,6 +239,14 @@ void* storageH264Samples(void *arg) {
         #endif
             if (isMounted && SDRecords.currentSession.empty() == false) {
                 samplesH264 += 1;
+
+                {
+                    /* 
+                        TODO: 
+                        Code segment check capacity of SD Card (Clear oldest directory or file oldest)
+                    */
+                }
+
                 int ret = SDCard::storageSamples(SDRecords.videoRecorder, (uint8_t*)&samplesH264, sizeof(samplesH264));
                 if (ret == SDCARD_RETURN_SUCCESS) {
                     std::cout << "[STORAGE] " << SDRecords.videoRecorder->getCurrentInstance() << std::endl;

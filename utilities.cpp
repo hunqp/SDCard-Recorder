@@ -76,3 +76,13 @@ void createDirectory(const char *directory) {
 		mkdir(directory, S_IRWXU | S_IRWXG | S_IRWXO);
 	}
 }
+
+uint32_t getBirthTimestamp(const char *url) {
+    struct stat fStat;
+
+    if (stat(url, &fStat) == 0) {
+        return (uint32_t)fStat.st_ctime;
+    }
+
+    return 0;
+}

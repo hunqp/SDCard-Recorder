@@ -1,5 +1,5 @@
-#ifndef __UTILS_H
-#define __UTILS_H
+#ifndef __UTILITIES_H
+#define __UTILITIES_H
 
 #include <string>
 #include <vector>
@@ -15,5 +15,6 @@ extern void epochToUTCTime(time_t epochTime, std::tm &tm);
 extern std::string getTodayDateString();
 extern uint32_t getCurrentEpochTimestamp();
 extern void createDirectory(const char *);
+extern uint32_t getBirthTimestamp(const char *);
 
-#endif /* __UTILS_H */
+#endif /* __UTILITIES_H */

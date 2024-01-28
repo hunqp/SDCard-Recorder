@@ -74,8 +74,7 @@ public:
 	bool hasMountPoint();
 	bool isVFatFmt();
 	void updateCapacity();
-	void eraseRecord(std::string dateTime, std::string videoDesc);
-	void eraseFolder(std::string dateTime);
+	void eraseOldestRecords(std::string dateTime = "");
 	std::vector<RecordDesc> getAllPlaylists(std::string dateTime, Recorder::eOption opt);
 
 	void lockPOSIXMutex();
@@ -92,6 +91,8 @@ private:
 	} mCapacity;
 
 	void qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime, Recorder::eOption opt);
+	void eraseRecord(std::string dateTime, std::string videoDesc);
+	void eraseFolder(std::string dateTime);
 
 public:
 	std::string hardDrive;
