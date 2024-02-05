@@ -23,7 +23,7 @@
 #include <mutex>
 #include <string>
 
-#include "recorder.h"
+#include "recorder.hpp"
 
 #define SDCARD_HARD_DRIVE	    		"/dev/mmcblk0"
 #define SDCARD_MOUNT_POINT     			"/tmp/sd"

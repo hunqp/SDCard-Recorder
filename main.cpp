@@ -1,11 +1,11 @@
 #include <bits/stdc++.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
-#include "SDCard.h"
-#include "recorder.h"
-#include "utilities.h"
-#include "sys/stat.h"
+#include "SDCard.hpp"
+#include "recorder.hpp"
+#include "utilitiesd.hpp"
 
 static SDCard SDRecords("/dev/sdb1");
 
@@ -36,7 +36,7 @@ int main() {
     SDRecords.assignMountPoint(pathToRecords);
     SDRecords.eStateSD = SDCard::eState::Mounted;
 
-#if 0
+#if 1
     setupBeforeOpenSession();
 
     if (!SDRecords.currentSession.empty()) {
@@ -53,7 +53,7 @@ int main() {
     }
 #endif
 
-#if 0
+#if 1
     SDCard::ENTRY_ATOMIC(SDRecords);
     {
         if (SDRecords.currentSession.empty() == false) {
@@ -90,7 +90,7 @@ int main() {
     SDCard::EXIT_ATOMIC(SDRecords);
 #endif
 
-#if 1 /* Test QUERY brith timestamp */
+#if 0 /* Test QUERY brith timestamp */
     std::cout << std::endl;
     std::string QFolder = "/home/hungqp/PC/SDCard-Recorder/records/video/2024.01.25";
     std::string QFile1 = "bbb.h264";

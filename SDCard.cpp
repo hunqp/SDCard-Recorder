@@ -9,8 +9,8 @@
 #include <sys/statfs.h>
 #include <sys/mount.h>
 
-#include "SDCard.h"
-#include "utilities.h"
+#include "SDCard.hpp"
+#include "utilitiesd.hpp"
 
 #define LOCAL_DBG_EN			(1)
 

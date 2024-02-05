@@ -1,5 +1,5 @@
-#ifndef __UTILITIES_H
-#define __UTILITIES_H
+#ifndef __UTILITIE_SD_H
+#define __UTILITIE_SD_H
 
 #include <string>
 #include <vector>
@@ -17,4 +17,4 @@ extern uint32_t getCurrentEpochTimestamp();
 extern void createDirectory(const char *);
 extern uint32_t getBirthTimestamp(const char *);
 
-#endif /* __UTILITIES_H */
+#endif /* __UTILITIE_SD_H */
