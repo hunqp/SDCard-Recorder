@@ -1,18 +1,3 @@
-/**
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * 
- * AUTHOR:		HungPNQ
- * 
- * DATE:		11/01/2024
- * 
- * DESCRIPTION:	The SDCard class provides an abstraction for handling operations
- * 				related to an SD card, such as mounting, unmounting, formatting, 
- * 				and retrieving information about playlists. It also includes 
- * 				functionalities to query and update the capacity of the SD card.
- * 
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-*/
-
 #ifndef __SDCARD_H
 #define __SDCARD_H
 
@@ -23,7 +8,7 @@
 #include <mutex>
 #include <string>
 
-#include "recorder.hpp"
+#include "recorder.h"
 
 #define SDCARD_HARD_DRIVE	    		"/dev/mmcblk0"
 #define SDCARD_MOUNT_POINT     			"/tmp/sd"
@@ -57,6 +42,7 @@ public:
 		Removed,
 		Inserted,	
 		Mounted,
+		InProcess,
 	};
 
 	enum class eOperations {
@@ -74,6 +60,7 @@ public:
 	bool hasMountPoint();
 	bool isVFatFmt();
 	void updateCapacity();
+	int getTotalSessionRecords();
 	void eraseOldestRecords(std::string dateTime = "");
 	std::vector<RecordDesc> getAllPlaylists(std::string dateTime, Recorder::eOption opt);
 
@@ -85,9 +72,9 @@ private:
 	eState mState = eState::Removed;
 
 	struct {
-		size_t total;
-		size_t used;
-		size_t free;
+		uint64_t total;
+		uint64_t used;
+		uint64_t free;
 	} mCapacity;
 
 	void qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime, Recorder::eOption opt);
@@ -98,15 +85,15 @@ public:
 	std::string hardDrive;
 	std::string mountPoint;
 
-	eState &eStateSD = mState;
+	eState &sdStatus = mState;
 	
 	std::string currentSession;
 	std::shared_ptr<Recorder> videoRecorder;
 	std::shared_ptr<Recorder> audioRecorder;
 
-	size_t &totalCapacity = mCapacity.total;
-	size_t &usedCapacity = mCapacity.used;
-	size_t &freeCapacity = mCapacity.free;
+	uint64_t &totalCapacity = mCapacity.total;
+	uint64_t &usedCapacity = mCapacity.used;
+	uint64_t &freeCapacity = mCapacity.free;
 
 	uint32_t endTimestamp = 0;
 

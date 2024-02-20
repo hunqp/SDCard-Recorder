@@ -2,8 +2,9 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
+#include <iostream>
 
-#include "recorder.hpp"
+#include "recorder.h"
 #include "utilitiesd.hpp"
 
 
@@ -89,8 +90,8 @@ int Recorder::getStop() {
 }
 
 int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
-	int ret = RECORD_RETURN_FAILURE;
-    int fd;
+	int ret = RECORD_RETURN_FAILURE, fd;
+    ssize_t nbOfBytes = 0;
 	
     fd = open(mTarget.c_str(), O_RDWR | O_APPEND, 0666);
 	if (fd == -1) {
@@ -98,9 +99,14 @@ int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
         return RECORD_RETURN_FAILURE;
     }
 
-    ssize_t nbOfBytes = write(fd, sample, totalSample);
+    try {
+        nbOfBytes = write(fd, sample, totalSample);
+        fsync(fd);
+    }
+    catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+	}
 
-    fsync(fd);
     close(fd);
 
 	if (nbOfBytes > 0) {
@@ -141,3 +147,4 @@ bool Recorder::isCompleted() {
 
     return (durationInSecs >= mDurationInSecs) ? true : false;
 }
+

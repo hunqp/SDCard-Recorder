@@ -45,7 +45,7 @@ public:
     Recorder(std::string pathToRecords,
              eType type, 
              eOption option, 
-             int durationInSecs = 10);
+             int durationInSecs = 300);
     ~Recorder();
 
     int getStart();

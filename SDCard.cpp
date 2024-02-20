@@ -7,9 +7,10 @@
 #include <algorithm>
 #include <sys/stat.h>
 #include <sys/statfs.h>
+#include <sys/statvfs.h>
 #include <sys/mount.h>
 
-#include "SDCard.hpp"
+#include "SDCard.h"
 #include "utilitiesd.hpp"
 
 #define LOCAL_DBG_EN			(1)
@@ -104,11 +105,13 @@ bool SDCard::isInserted() {
 }
 
 bool SDCard::hasMountPoint() {
-	struct stat pathStat, parentStat;
 	bool ret = false;
+	struct statvfs statvFs;
 
-	if ((stat(mountPoint.c_str(), &pathStat) != -1) && (stat("..", &parentStat) != -1)) {
-		ret = (pathStat.st_dev != parentStat.st_dev) ? true : false;
+	if (statvfs(mountPoint.c_str(), &statvFs) == 0) {
+		if (statvFs.f_fsid != 0) {
+			ret = true;
+		}
 	}
 
     return ret;
@@ -130,17 +133,32 @@ void SDCard::updateCapacity() {
 
 	if (statfs(mountPoint.c_str(), &fStatfs) != -1) {
 		memset(&mCapacity, 0, sizeof(mCapacity));
-#if 0
-		mCapacity.total = (int)(((uint64_t)fStatfs.f_blocks * (uint64_t)fStatfs.f_bsize) >> 10);
-		mCapacity.used = (int)((((uint64_t)fStatfs.f_blocks - (uint64_t)fStatfs.f_bfree) * (uint64_t)fStatfs.f_bsize) >> 10);
-		mCapacity.free = (int)(((uint64_t)fStatfs.f_bavail * (uint64_t)fStatfs.f_bsize) >> 10);
-#else
-		size_t blockSize = fStatfs.f_bsize;
-		mCapacity.total = blockSize * fStatfs.f_blocks;
-		mCapacity.free = blockSize * fStatfs.f_bfree;
-		mCapacity.used = blockSize * (fStatfs.f_blocks - fStatfs.f_bfree);
-#endif
+
+		size_t blockSize = (uint64_t)fStatfs.f_bsize;
+		mCapacity.total  = (uint64_t)blockSize * (uint64_t)fStatfs.f_blocks;
+		mCapacity.free   = (uint64_t)blockSize * (uint64_t)fStatfs.f_bfree;
+		mCapacity.used   = (uint64_t)blockSize * ((uint64_t)fStatfs.f_blocks - (uint64_t)fStatfs.f_bfree);
 	}
+}
+
+int SDCard::getTotalSessionRecords() {
+	int counts = 0;
+
+	DIR *dir = opendir(mountPoint.c_str());
+    if (!dir) {
+        return 0;
+    }
+
+    struct dirent *ent;
+
+    while ((ent = readdir(dir)) != NULL) {
+        if (ent->d_type == DT_DIR && strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) {
+            ++counts;
+        }
+    }
+    closedir(dir);
+
+	return counts;
 }
 
 void SDCard::eraseRecord(std::string dateTime, std::string videoDesc) {
@@ -363,29 +381,25 @@ bool SDCard::isSDCardMounted(SDCard &sdCard) {
 	bool ret = false;
 
 	if (!sdCard.isInserted()) {
-		if (sdCard.eStateSD != eState::Removed) {
+		if (sdCard.sdStatus != eState::Removed) {
 			sdCard.setOperation(eOperations::Unmount);
-
-			std::cout << "Stop new session recording !!!" << std::endl;
-			closeSessionFullRec(sdCard);
 		}
-		sdCard.eStateSD = eState::Removed;
+		sdCard.sdStatus = eState::Removed;
 		return false;
 	}
 
-	sdCard.eStateSD = eState::Inserted;
+	sdCard.sdStatus = eState::Inserted;
 
 	if (sdCard.hasMountPoint()) {
-		sdCard.eStateSD = eState::Mounted;
+		sdCard.sdStatus = eState::Mounted;
 	}
 	else {
 		if (sdCard.setOperation(eOperations::Mount) == SDCARD_RETURN_SUCCESS) {
-			sdCard.eStateSD = eState::Mounted;
-			openSessionFullRec(sdCard);
+			sdCard.sdStatus = eState::Mounted;
 		}
 	}
 
-	if (sdCard.eStateSD == eState::Mounted) {
+	if (sdCard.sdStatus == eState::Mounted) {
 		sdCard.updateCapacity();
 		ret = true;
 	}
@@ -394,13 +408,6 @@ bool SDCard::isSDCardMounted(SDCard &sdCard) {
 }
 
 void SDCard::openSessionFullRec(SDCard &sdCard) {
-	/* QUERY: If current session record has existed -> OPENING
-			  Else -> DO NOTHING
-	*/
-	if (sdCard.currentSession.empty() != true) {
-		return;
-	}
-
 	sdCard.currentSession = getTodayDateString();
 
 	/* Create parent directories (Video and audio) */
@@ -420,13 +427,6 @@ void SDCard::openSessionFullRec(SDCard &sdCard) {
 }
 
 void SDCard::closeSessionFullRec(SDCard &sdCard) {
-	/* QUERY: If current session record has existed -> CLOSING
-			  Else -> DO NOTHING
-	*/
-	if (sdCard.currentSession.empty() == true) {
-		return;
-	}
-
 	sdCard.currentSession.clear();
 	sdCard.videoRecorder->getStop();
 	sdCard.audioRecorder->getStop();
