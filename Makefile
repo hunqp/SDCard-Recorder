@@ -7,7 +7,7 @@ LDLIBS	    += -lpthread
 
 INC         =   .
 SRCS        +=  $(INC)/main.cpp
-SRCS        +=  $(INC)/utilitiesd.cpp
+SRCS        +=  $(INC)/utils.cpp
 SRCS        +=  $(INC)/recorder.cpp
 SRCS        +=  $(INC)/SDCard.cpp
 

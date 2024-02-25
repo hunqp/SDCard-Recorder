@@ -3,11 +3,11 @@
 #include <pthread.h>
 #include <sys/stat.h>
 
-#include "SDCard.hpp"
-#include "recorder.hpp"
-#include "utilitiesd.hpp"
+#include "SDCard.h"
+#include "recorder.h"
+#include "utils.hpp"
 
-static SDCard SDRecords("/dev/sdb1");
+static SDCard SDCARD("/dev/sdb1");
 
 static uint8_t samplesH264 = 0;
 static uint8_t samplesG711 = 0;
@@ -26,20 +26,20 @@ static void* storageG711Samples(void *arg);
 int main() {
     std::signal(SIGINT, signalHandler);
 
-    char currentPath[256];
-    assert(getcwd(currentPath, sizeof(currentPath)) != NULL);
-    std::string pathToRecords(currentPath, strlen(currentPath));
+    char pwd[256];
+    assert(getcwd(pwd, sizeof(pwd)) != NULL);
+    std::string pathToRecords(pwd, strlen(pwd));
     pathToRecords += "/records";
 
     std::cout << "Path to records : " << pathToRecords << std::endl;
 
-    SDRecords.assignMountPoint(pathToRecords);
-    SDRecords.eStateSD = SDCard::eState::Mounted;
+#if 0
+    SDCARD.assignMountPoint(pathToRecords);
+    SDCARD.eStatus = SDCard::eState::Mounted;
 
-#if 1
     setupBeforeOpenSession();
 
-    if (!SDRecords.currentSession.empty()) {
+    if (!SDCARD.currentSession.empty()) {
         pthread_create(&threadPollingDateTimeId,    NULL, pollingDateTime,      NULL);
         pthread_create(&threadStorageH264SamplesId, NULL, storageH264Samples,   NULL);
         pthread_create(&threadStorageG711SamplesId, NULL, storageG711Samples,   NULL);
@@ -51,109 +51,40 @@ int main() {
     else {
         std::cout << "[OPEN] Session Record Opening Failed" << std::endl;
     }
-#endif
+#else
+    std::string url = pathToRecords + "/video/2024.02.25/20240225195708_1708865828_1708865844.h264";
+    struct stat STAT;
 
-#if 1
-    SDCard::ENTRY_ATOMIC(SDRecords);
-    {
-        if (SDRecords.currentSession.empty() == false) {
-            SDRecords.videoRecorder->getStop();
-            SDRecords.audioRecorder->getStop();
-            SDCard::closeSessionFullRec(SDRecords);
-        }
-        
-        std::string qDay = "2024.01.25";
-        auto listRecords = SDRecords.getAllPlaylists(qDay, Recorder::eOption::Full);
+    printf("URL: %s\n", url.c_str());
 
-        printf("Total full records : %ld\n", listRecords.size());
-        if (listRecords.size()) {   
-            for (auto it : listRecords) {
-                printf("%s, [%s - %s]\n", 
-                                it.fileName.c_str(), 
-                                it.beginTime.c_str(), 
-                                it.endTime.c_str());
-            }
-        }
+    if (stat(url.c_str(), &STAT) == 0) {
+        time_t lastModifiedTime = STAT.st_mtime;
 
-        listRecords = SDRecords.getAllPlaylists(qDay, Recorder::eOption::Motion);
-        printf("Total motion records : %ld\n", listRecords.size());
-        if (listRecords.size()) {   
-            for (auto it : listRecords) {
-                printf("%s, [%s - %s]\n", 
-                                it.fileName.c_str(), 
-                                it.beginTime.c_str(), 
-                                it.endTime.c_str());
-            }
-        }
-    }
-
-    SDCard::EXIT_ATOMIC(SDRecords);
-#endif
-
-#if 0 /* Test QUERY brith timestamp */
-    std::cout << std::endl;
-    std::string QFolder = "/home/hungqp/PC/SDCard-Recorder/records/video/2024.01.25";
-    std::string QFile1 = "bbb.h264";
-    std::string QFile2 = "aaa.h264";
-
-    std::string qDay25 = pathToRecords + "/video/" + "2024.01.25";
-    std::string qDay28 = pathToRecords + "/video/" + "2024.01.28";
-
-    uint32_t birthOfQDay25 = getBirthTimestamp(qDay25.c_str());
-    uint32_t birthOfQDay28 = getBirthTimestamp(qDay28.c_str());
-
-    printf("[2024.01.25] %d\t%s\n", birthOfQDay25, ctime((time_t*)(time_t)&birthOfQDay25));
-    printf("[2024.01.28] %d\t%s\n", birthOfQDay28, ctime((time_t*)(time_t)&birthOfQDay28));
-
-    if (birthOfQDay25 < birthOfQDay28) {
-        std::cout << "2024.01.25 must be DELETED" << std::endl;
+        printf("Last Modification Time:\t%d\n", lastModifiedTime);
+        printf("Last Modification Time:\t%s\n", ctime(&lastModifiedTime));
     }
     else {
-        std::cout << "2024.01.28 must be DELETED" << std::endl;
+        printf("SIG -> FAILED\n");
     }
+
 #endif
 
     return 0;
 }
 
-/*
-    if (SDCard::isSDCardMounted(SDRecords)) {
-        printf("Total capacity :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
-                        (uint32_t)SDRecords.totalCapacity,
-                        (uint32_t)bytesToKiloBytes(SDRecords.totalCapacity),
-                        (uint32_t)bytesToMegaBytes(SDRecords.totalCapacity),
-                        (uint32_t)bytesToGigaBytes(SDRecords.totalCapacity));
-        
-        printf("Used capacity  :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
-                        (uint32_t)SDRecords.usedCapacity,
-                        (uint32_t)bytesToKiloBytes(SDRecords.usedCapacity),
-                        (uint32_t)bytesToMegaBytes(SDRecords.usedCapacity),
-                        (uint32_t)bytesToGigaBytes(SDRecords.usedCapacity));
-
-        printf("Free capacity  :\t%d B\t\t%d KB\t\t%d MB\t%d GB\n", 
-                        (uint32_t)SDRecords.freeCapacity,
-                        (uint32_t)bytesToKiloBytes(SDRecords.freeCapacity),
-                        (uint32_t)bytesToMegaBytes(SDRecords.freeCapacity),
-                        (uint32_t)bytesToGigaBytes(SDRecords.freeCapacity));
-    }
-    else {
-        std::cout << "SD Card hasn't mounted" << std::endl;
-    }
-*/
-
 void signalHandler(int signal) {
     (void)signal;
 
-    SDCard::ENTRY_ATOMIC(SDRecords);
+    SDCard::ENTRY_ATOMIC(SDCARD);
     {
-        if (SDRecords.currentSession.empty() == false) {
-            SDRecords.videoRecorder->getStop();
-            SDRecords.audioRecorder->getStop();
-            SDCard::closeSessionFullRec(SDRecords);
+        if (SDCARD.currentSession.empty() == false) {
+            SDCARD.videoRecorder->getStop();
+            SDCARD.audioRecorder->getStop();
+            SDCard::closeCurrentSession(SDCARD);
         }
         
         std::string today = getTodayDateString();
-        auto listRecords = SDRecords.getAllPlaylists(today, Recorder::eOption::Full);
+        auto listRecords = SDCARD.getAllPlaylists(today, SDCard::eQryPlaylist::Full);
 
         printf("Total full records : %ld\n", listRecords.size());
         if (listRecords.size()) {   
@@ -165,7 +96,7 @@ void signalHandler(int signal) {
             }
         }
 
-        listRecords = SDRecords.getAllPlaylists(today, Recorder::eOption::Motion);
+        listRecords = SDCARD.getAllPlaylists(today, SDCard::eQryPlaylist::All);
         printf("Total motion records : %ld\n", listRecords.size());
         if (listRecords.size()) {   
             for (auto it : listRecords) {
@@ -177,7 +108,7 @@ void signalHandler(int signal) {
         }
     }
 
-    SDCard::EXIT_ATOMIC(SDRecords);
+    SDCard::EXIT_ATOMIC(SDCARD);
 
     std::cout << std::endl;
     std::cout << "Application exit !!!" << std::endl;
@@ -186,27 +117,27 @@ void signalHandler(int signal) {
 }
 
 void setupBeforeOpenSession() {
-    SDCard::ENTRY_ATOMIC(SDRecords);
+    SDCard::ENTRY_ATOMIC(SDCARD);
     {
         bool isMounted = false;
 
     #if 0 /* Query SD Card has mounted or unmounted */
-        isMounted = SDCard::isSDCardMounted(SDRecords);
+        isMounted = SDCard::isSDCardMounted(SDCARD);
     #else
         isMounted = true; /* TODO: Assign for testing */
-        SDRecords.eStateSD = SDCard::eState::Mounted;
+        SDCARD.eStatus = SDCard::eState::Mounted;
     #endif
 
         if (!isMounted) {
             return;
         }
 
-        if (SDRecords.currentSession.empty()) {
-            SDCard::openSessionFullRec(SDRecords);
-            std::cout << "[START] Record Session " << SDRecords.currentSession << std::endl;
+        if (SDCARD.currentSession.empty()) {
+            SDCard::openSessionRecord(SDCARD, Recorder::eOption::Full);
+            std::cout << "[START] Record Session " << SDCARD.currentSession << std::endl;
         }
     }
-    SDCard::EXIT_ATOMIC(SDRecords);
+    SDCard::EXIT_ATOMIC(SDCARD);
 }
 
 void* pollingDateTime(void *arg) {
@@ -215,8 +146,8 @@ void* pollingDateTime(void *arg) {
     while (1) {
         std::cout << "[QUERY] Datetime Session Record" << std::endl;
 
-        if (getTodayDateString() != SDRecords.currentSession) {
-            SDCard::closeSessionFullRec(SDRecords);
+        if (getTodayDateString() != SDCARD.currentSession) {
+            SDCard::closeCurrentSession(SDCARD);
             setupBeforeOpenSession();
         }
 
@@ -230,14 +161,14 @@ void* storageH264Samples(void *arg) {
     (void)arg;
 
     while (1) {
-        SDCard::ENTRY_ATOMIC(SDRecords);
+        SDCard::ENTRY_ATOMIC(SDCARD);
         {
         #if 0
-            bool isMounted = SDCard::isSDCardMounted(SDRecords);
+            bool isMounted = SDCard::isSDCardMounted(SDCARD);
         #else
             bool isMounted = true;
         #endif
-            if (isMounted && SDRecords.currentSession.empty() == false) {
+            if (isMounted && SDCARD.currentSession.empty() == false) {
                 samplesH264 += 1;
 
                 {
@@ -247,13 +178,13 @@ void* storageH264Samples(void *arg) {
                     */
                 }
 
-                int ret = SDCard::storageSamples(SDRecords.videoRecorder, (uint8_t*)&samplesH264, sizeof(samplesH264));
+                int ret = SDCard::storageSamples(SDCARD.videoRecorder, (uint8_t*)&samplesH264, sizeof(samplesH264));
                 if (ret == SDCARD_RETURN_SUCCESS) {
-                    std::cout << "[STORAGE] " << SDRecords.videoRecorder->getCurrentInstance() << std::endl;
+                    std::cout << "[STORAGE] " << SDCARD.videoRecorder->getCurrentInstance() << std::endl;
                 }
             }
         }
-        SDCard::EXIT_ATOMIC(SDRecords);
+        SDCard::EXIT_ATOMIC(SDCARD);
 
         sleep(1);
     }
@@ -272,27 +203,27 @@ void* storageG711Samples(void *arg) {
     (void)arg;
 
     while (1) {
-        SDCard::ENTRY_ATOMIC(SDRecords);
+        SDCard::ENTRY_ATOMIC(SDCARD);
         {
             
 
         #if 0
-            bool isMounted = SDCard::isSDCardMounted(SDRecords);
+            bool isMounted = SDCard::isSDCardMounted(SDCARD);
         #else
             bool isMounted = true;
         #endif
     
-            if (isMounted && SDRecords.currentSession.empty() == false) {
+            if (isMounted && SDCARD.currentSession.empty() == false) {
                 updateEndTimestamp();
 
                 samplesG711 += 2;
-                int ret = SDCard::storageSamples(SDRecords.audioRecorder, (uint8_t*)&samplesG711, sizeof(samplesG711));
+                int ret = SDCard::storageSamples(SDCARD.audioRecorder, (uint8_t*)&samplesG711, sizeof(samplesG711));
                 if (ret == SDCARD_RETURN_SUCCESS) {
-                    std::cout << "[STORAGE] " << SDRecords.audioRecorder->getCurrentInstance() << std::endl;
+                    std::cout << "[STORAGE] " << SDCARD.audioRecorder->getCurrentInstance() << std::endl;
                 }
             }
         }
-        SDCard::EXIT_ATOMIC(SDRecords);
+        SDCard::EXIT_ATOMIC(SDCARD);
 
         sleep(1);
     }

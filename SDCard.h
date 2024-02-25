@@ -36,6 +36,12 @@ typedef struct {
 	} sortTime;
 } RecordDesc;
 
+typedef struct {
+	uint64_t total;
+	uint64_t used;
+	uint64_t free;
+} MemMang_t;
+
 class SDCard {
 public:
 	enum class eState {
@@ -51,6 +57,12 @@ public:
 		Format,
 	};
 
+	enum class eQryPlaylist {
+		All,
+		Full,
+		Motion,
+	};
+
 	SDCard(std::string hardDrive);
 	~SDCard();
 	
@@ -62,7 +74,7 @@ public:
 	void updateCapacity();
 	int getTotalSessionRecords();
 	void eraseOldestRecords(std::string dateTime = "");
-	std::vector<RecordDesc> getAllPlaylists(std::string dateTime, Recorder::eOption opt);
+	std::vector<RecordDesc> getAllPlaylists(std::string dateTime, eQryPlaylist type);
 
 	void lockPOSIXMutex();
 	void unLockPOSIXMutex();
@@ -70,14 +82,9 @@ public:
 private:
 	pthread_mutex_t mPOSIXMutex;
 	eState mState = eState::Removed;
+	MemMang_t mCapacity;
 
-	struct {
-		uint64_t total;
-		uint64_t used;
-		uint64_t free;
-	} mCapacity;
-
-	void qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime, Recorder::eOption opt);
+	void qryPlayList(std::vector<RecordDesc> &listRecords, std::string dateTime, eQryPlaylist type);
 	void eraseRecord(std::string dateTime, std::string videoDesc);
 	void eraseFolder(std::string dateTime);
 
@@ -85,7 +92,7 @@ public:
 	std::string hardDrive;
 	std::string mountPoint;
 
-	eState &sdStatus = mState;
+	eState &eStatus = mState;
 	
 	std::string currentSession;
 	std::shared_ptr<Recorder> videoRecorder;
@@ -95,8 +102,6 @@ public:
 	uint64_t &usedCapacity = mCapacity.used;
 	uint64_t &freeCapacity = mCapacity.free;
 
-	uint32_t endTimestamp = 0;
-
 	/* Function protect safe accesss to SDCard */
 	static void ENTRY_ATOMIC(SDCard &sdCard);
 	static void EXIT_ATOMIC(SDCard &sdCard);
@@ -105,16 +110,9 @@ public:
 		and EXIT_ATOMIC() to protect operations.
 	*/
 	static bool isSDCardMounted(SDCard &sdCard);
-	static void openSessionFullRec(SDCard &sdCard);
-	static void closeSessionFullRec(SDCard &sdCard);
+	static void openSessionRecord(SDCard &sdCard, Recorder::eOption option);
+	static void closeCurrentSession(SDCard &sdCard);
 	static int storageSamples(std::shared_ptr<Recorder> rec, uint8_t *sample, size_t totalSample);
 };
-
-#define gigaBytesToMegaBytes(n)	((size_t)n * 1024)
-#define gigaBytesToKiloBytes(n)	((size_t)n * 1024 * 1024)
-#define gigaBytesToBytes(n)		((size_t)n * 1024 * 1024 * 1024)
-#define bytesToKiloBytes(n)		((size_t)n / 1024)
-#define bytesToMegaBytes(n)		((size_t)n / 1024 / 1024)
-#define bytesToGigaBytes(n)		((size_t)n / 1024 / 1024 / 1024)
 
 #endif /* __SDCARD_H */

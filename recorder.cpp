@@ -5,10 +5,10 @@
 #include <iostream>
 
 #include "recorder.h"
-#include "utilitiesd.hpp"
+#include "utils.hpp"
 
 
-#define LOCAL_DBG_EN			(1)
+#define LOCAL_DBG_EN			(0)
 
 #if (LOCAL_DBG_EN == 1)
 #define LOCAL_DBG(fmt, ...) 	printf("\x1B[36m" fmt "\x1B[0m", ##__VA_ARGS__)
@@ -29,7 +29,6 @@ Recorder::Recorder(std::string pathToRecords,
     this->mOption = option;
     this->mDurationInSecs = durationInSecs;
 
-    this->mExtension += (mType == eType::Video)      ? "_13"  : "";
     this->mExtension += (mOption == eOption::Motion) ? "_mdt" : "";
     this->mExtension += (mType == eType::Video)      ? FILE_VIDEO_RECORD_TEMPORARY : FILE_AUDIO_RECORD_TEMPORARY;
 }
@@ -39,6 +38,7 @@ Recorder::~Recorder() {
 }
 
 int Recorder::getStart() {
+    int fd = -1;
     std::tm tm;
     std::string fmt = FILE_RECORD_STRING_FORMAT + mExtension;
 
@@ -55,32 +55,46 @@ int Recorder::getStart() {
 
     mTarget.assign(pathToRecords + "/" + fmt);
 
-    int fd = open(mTarget.c_str(), O_RDWR | O_CREAT | O_APPEND, 0666);
-	if (fd == -1) {
-        mTarget.clear();
-		return RECORD_RETURN_FAILURE;
+
+    try {
+        fd = open(mTarget.c_str(), O_RDWR | O_CREAT | O_APPEND, 0666);
+        if (fd == -1) {
+            mTarget.clear();
+            return RECORD_RETURN_FAILURE;
+        }
     }
+    catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+	}
 
     close(fd);
 
-    LOCAL_DBG("[START] Target : %s\n", mTarget.c_str());
+    LOCAL_DBG("[START] Instance: %s\n", mTarget.c_str());
 
     return RECORD_RETURN_SUCCESS;
 }
 
 int Recorder::getStop() {
     int ret = RECORD_RETURN_FAILURE;
-    const std::string searchString = std::string(".tmp");
+    const std::string stSearch = std::string(".tmp");
     std::string targetRename = mTarget;
 
     if (!targetRename.empty()) {
-        size_t pos = targetRename.find(searchString);
+        size_t pos = targetRename.find(stSearch);
         if (pos != std::string::npos) {
-            targetRename.erase(pos, searchString.length());
-            rename(mTarget.c_str(), targetRename.c_str());
-            ret = RECORD_RETURN_SUCCESS;
+            targetRename.erase(pos, stSearch.length());
+
+            try {
+                if (rename(mTarget.c_str(), targetRename.c_str()) == 0) {
+                    LOCAL_DBG("[STOP] Rename %s to %s\n", mTarget.c_str(), targetRename.c_str());
+                    ret = RECORD_RETURN_SUCCESS;
+                }
+            }
+            catch (const std::exception &e) {
+                std::cout << e.what() << std::endl;
+            }
+            
             mTarget.clear();
-            LOCAL_DBG("Rename %s to %s\n", mTarget.c_str(), targetRename.c_str());
         }
     }
 
@@ -90,17 +104,17 @@ int Recorder::getStop() {
 }
 
 int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
-	int ret = RECORD_RETURN_FAILURE, fd;
-    ssize_t nbOfBytes = 0;
-	
-    fd = open(mTarget.c_str(), O_RDWR | O_APPEND, 0666);
-	if (fd == -1) {
-		LOCAL_DBG("[ERROR] Open : %s\n", mTarget.c_str());
-        return RECORD_RETURN_FAILURE;
-    }
+	int ret = RECORD_RETURN_FAILURE, fd = -1;
+    ssize_t nbBytes = 0;
 
     try {
-        nbOfBytes = write(fd, sample, totalSample);
+        fd = open(mTarget.c_str(), O_RDWR | O_APPEND, 0666);
+        if (fd == -1) {
+            LOCAL_DBG("[STORAGE] Open : %s\n", mTarget.c_str());
+            return RECORD_RETURN_FAILURE;
+        }
+
+        nbBytes = write(fd, sample, totalSample);
         fsync(fd);
     }
     catch (const std::exception &e) {
@@ -109,7 +123,7 @@ int Recorder::getStorage(uint8_t *sample, size_t totalSample) {
 
     close(fd);
 
-	if (nbOfBytes > 0) {
+	if (nbBytes > 0) {
         updateLastTimestampRecord();
 		ret = RECORD_RETURN_SUCCESS;
 	}
@@ -140,11 +154,15 @@ std::string Recorder::getCurrentInstance() {
 }
 
 bool Recorder::isCompleted() {
+    bool ret = false;
     auto strings = splitString(mTarget, '_');
-    auto startTimestamp = stoi(strings[1]);
-    auto stopTimestamp = stoi(strings[2]);
-    auto durationInSecs = stopTimestamp - startTimestamp;
+    auto startTimestamp = (uint32_t)stoi(strings[1]);
+    auto stopTimestamp = (uint32_t)stoi(strings[2]);
+    auto durationInSecs = (int)(stopTimestamp - startTimestamp);
 
-    return (durationInSecs >= mDurationInSecs) ? true : false;
+    if (durationInSecs >= mDurationInSecs && stopTimestamp == Recorder::endTimestamp) {
+        ret = true;
+    }
+
+    return ret;
 }
-
